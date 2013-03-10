@@ -19,9 +19,16 @@ func ip(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, string(response))
 }
 
+func useragent(w http.ResponseWriter, r *http.Request) {
+    response, err := json.MarshalIndent(map[string]string{"user-agent": r.UserAgent()}, "", "  ")
+    if err != nil { log.Fatal(err) }
+    fmt.Fprintf(w, string(response))
+}
+
 func main() {
     http.HandleFunc("/", homepage)
     http.HandleFunc("/ip", ip)
+    http.HandleFunc("/user-agent", useragent)
 
     fmt.Printf("Listening on port 8000...\n")
     err := http.ListenAndServe(":8000", nil)
