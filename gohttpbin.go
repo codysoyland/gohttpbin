@@ -25,10 +25,22 @@ func useragent(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, string(response))
 }
 
+func headers(w http.ResponseWriter, r *http.Request) {
+    headers := map[string]string{}
+    for k, v := range r.Header {
+        headers[k] = v[0]
+    }
+    response, err := json.MarshalIndent(map[string]map[string]string{"headers": headers}, "", "  ")
+    if err != nil { log.Fatal(err) }
+    fmt.Fprintf(w, string(response))
+}
+
+
 func main() {
     http.HandleFunc("/", homepage)
     http.HandleFunc("/ip", ip)
     http.HandleFunc("/user-agent", useragent)
+    http.HandleFunc("/headers", headers)
 
     fmt.Printf("Listening on port 8000...\n")
     err := http.ListenAndServe(":8000", nil)
