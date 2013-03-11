@@ -6,6 +6,7 @@ import (
     "net/http"
     "strings"
     "encoding/json"
+    "compress/gzip"
 )
 
 type Headers map[string]string
@@ -64,12 +65,30 @@ func get(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, string(response))
 }
 
+func gzipHandler(w http.ResponseWriter, r *http.Request) {
+    res := map[string]interface{}{
+        "headers": getHeaders(r),
+        "origin": getIp(r),
+        "gzipped": true,
+        "method": r.Method,
+    }
+    response, err := json.MarshalIndent(res, "", "  ")
+    if err != nil { log.Fatal(err) }
+    w.Header().Set("Content-Encoding", "gzip")
+    w.Header().Set("Content-Type", "application/json")
+    writer := gzip.NewWriter(w)
+    if err != nil { log.Fatal(err) }
+    fmt.Fprintf(writer, string(response))
+    defer writer.Close()
+}
+
 func main() {
     http.HandleFunc("/", homepage)
     http.HandleFunc("/ip", ip)
     http.HandleFunc("/user-agent", useragent)
     http.HandleFunc("/headers", headers)
     http.HandleFunc("/get", get)
+    http.HandleFunc("/gzip", gzipHandler)
 
     fmt.Printf("Listening on port 8000...\n")
     err := http.ListenAndServe(":8000", nil)
