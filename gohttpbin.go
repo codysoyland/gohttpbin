@@ -10,6 +10,7 @@ import (
 )
 
 type Headers map[string]string
+type ResponseDict map[string]interface{}
 
 func homepage(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, "Welcome to gohttpbin!")
@@ -54,24 +55,14 @@ func getArgs(r *http.Request)map[string]string {
 }
 
 func get(w http.ResponseWriter, r *http.Request) {
-    res := map[string]interface{}{
-        "headers": getHeaders(r),
-        "url": "http://" + r.Host + r.URL.String(),
-        "args": getArgs(r),
-        "origin": getIp(r),
-    }
+    res := buildResponseDict(r, []string{"headers", "url", "args", "origin"})
     response, err := json.MarshalIndent(res, "", "  ")
     if err != nil { log.Fatal(err) }
     fmt.Fprintf(w, string(response))
 }
 
 func gzipHandler(w http.ResponseWriter, r *http.Request) {
-    res := map[string]interface{}{
-        "headers": getHeaders(r),
-        "origin": getIp(r),
-        "gzipped": true,
-        "method": r.Method,
-    }
+    res := buildResponseDict(r, []string{"headers", "origin", "gzipped", "method"})
     response, err := json.MarshalIndent(res, "", "  ")
     if err != nil { log.Fatal(err) }
     w.Header().Set("Content-Encoding", "gzip")
@@ -80,6 +71,21 @@ func gzipHandler(w http.ResponseWriter, r *http.Request) {
     if err != nil { log.Fatal(err) }
     fmt.Fprintf(writer, string(response))
     defer writer.Close()
+}
+
+func buildResponseDict(r *http.Request, items []string) ResponseDict {
+    res := make(ResponseDict)
+    for _, item := range items {
+        switch item {
+            case "headers": res[item] = getHeaders(r)
+            case "url": res[item] = "http://" + r.Host + r.URL.String()
+            case "args": res[item] = getArgs(r)
+            case "origin": res[item] = getIp(r)
+            case "gzipped": res[item] = true
+            case "method": res[item] = r.Method
+        }
+    }
+    return res
 }
 
 func main() {
