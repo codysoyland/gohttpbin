@@ -76,6 +76,14 @@ func respondJson(w http.ResponseWriter, response ResponseDict) {
     respond(w, string(response_text), headers)
 }
 
+func checkMethod(w http.ResponseWriter, r *http.Request, method string) bool {
+    if r.Method != method {
+        w.WriteHeader(405)
+        return false
+    }
+    return true
+}
+
 func homepageHandler(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, "Welcome to gohttpbin!") // TODO: rip off httpbin.org :P
 }
@@ -93,6 +101,7 @@ func headersHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHandler(w http.ResponseWriter, r *http.Request) {
+    if !checkMethod(w, r, "GET") { return }
     respondJson(w, buildResponseDict(r, []string{"headers", "url", "args", "origin"}))
 }
 
