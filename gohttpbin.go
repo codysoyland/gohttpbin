@@ -142,6 +142,18 @@ func gzipHandler(w http.ResponseWriter, r *http.Request) {
     respond(w, str, headers)
 }
 
+func statusHandler(w http.ResponseWriter, r *http.Request) {
+    re := regexp.MustCompile(`/status/(\d{1,3})$`)
+    match := re.FindStringSubmatch(r.URL.String())
+    if len(match) == 0 {
+        w.WriteHeader(404)
+        return
+    }
+    status, err := strconv.ParseInt(match[1], 10, 16)
+    if err != nil { log.Fatal(err) }
+    w.WriteHeader(int(status))
+}
+
 func streamHandler(w http.ResponseWriter, r *http.Request) {
     re := regexp.MustCompile(`/stream/(\d{1,9}).*`)
     match := re.FindStringSubmatch(r.URL.String())
@@ -194,6 +206,7 @@ func main() {
     http.HandleFunc("/patch", patchHandler)
     http.HandleFunc("/delete", deleteHandler)
     http.HandleFunc("/gzip", gzipHandler)
+    http.HandleFunc("/status/", statusHandler)
     http.HandleFunc("/stream/", streamHandler)
     http.HandleFunc("/delay/", delayHandler)
 
