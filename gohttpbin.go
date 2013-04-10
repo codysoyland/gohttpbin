@@ -51,6 +51,7 @@ func buildResponseDict(r *http.Request, items []string) ResponseDict {
             case "form": res[item] = make(map[string]string) // TODO: implement
             case "data": res[item] = "" // TODO: implement
             case "files": res[item] = make(map[string]string) // TODO: implement
+            case "json": res[item] = nil // TODO: implement
         }
     }
     return res
@@ -103,6 +104,26 @@ func headersHandler(w http.ResponseWriter, r *http.Request) {
 func getHandler(w http.ResponseWriter, r *http.Request) {
     if !checkMethod(w, r, "GET") { return }
     respondJson(w, buildResponseDict(r, []string{"headers", "url", "args", "origin"}))
+}
+
+func postHandler(w http.ResponseWriter, r *http.Request) {
+    if !checkMethod(w, r, "POST") { return }
+    respondJson(w, buildResponseDict(r, []string{"url", "args", "form", "data", "origin", "headers", "files", "json"}))
+}
+
+func putHandler(w http.ResponseWriter, r *http.Request) {
+    if !checkMethod(w, r, "PUT") { return }
+    respondJson(w, buildResponseDict(r, []string{"url", "args", "form", "data", "origin", "headers", "files", "json"}))
+}
+
+func patchHandler(w http.ResponseWriter, r *http.Request) {
+    if !checkMethod(w, r, "PATCH") { return }
+    respondJson(w, buildResponseDict(r, []string{"url", "args", "form", "data", "origin", "headers", "files", "json"}))
+}
+
+func deleteHandler(w http.ResponseWriter, r *http.Request) {
+    if !checkMethod(w, r, "DELETE") { return }
+    respondJson(w, buildResponseDict(r, []string{"url", "args", "data", "origin", "headers", "json"}))
 }
 
 func gzipHandler(w http.ResponseWriter, r *http.Request) {
@@ -168,6 +189,10 @@ func main() {
     http.HandleFunc("/user-agent", useragentHandler)
     http.HandleFunc("/headers", headersHandler)
     http.HandleFunc("/get", getHandler)
+    http.HandleFunc("/post", postHandler)
+    http.HandleFunc("/put", putHandler)
+    http.HandleFunc("/patch", patchHandler)
+    http.HandleFunc("/delete", deleteHandler)
     http.HandleFunc("/gzip", gzipHandler)
     http.HandleFunc("/stream/", streamHandler)
     http.HandleFunc("/delay/", delayHandler)
