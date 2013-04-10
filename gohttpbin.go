@@ -10,6 +10,8 @@ import (
     "regexp"
     "strconv"
     "time"
+    "bytes"
+    "io"
 )
 
 type Headers map[string]string
@@ -57,11 +59,28 @@ func getArgs(r *http.Request)map[string]string {
     return args
 }
 
-func get(w http.ResponseWriter, r *http.Request) {
-    res := buildResponseDict(r, []string{"headers", "url", "args", "origin"})
-    response, err := json.MarshalIndent(res, "", "  ")
+func respond(w http.ResponseWriter, content string, headers Headers) {
+    var buf bytes.Buffer
+    fmt.Fprintf(&buf, content)
+    headers["Content-Length"] = strconv.Itoa(buf.Len())
+    for k, v := range headers {
+        w.Header().Set(k, v)
+    }
+    io.Copy(w, &buf)
+}
+
+func respondJson(w http.ResponseWriter, response ResponseDict) {
+    response_text, err := json.MarshalIndent(response, "", "  ")
     if err != nil { log.Fatal(err) }
-    fmt.Fprintf(w, string(response))
+    var buf bytes.Buffer
+    fmt.Fprintf(&buf, string(response_text))
+    headers := make(Headers)
+    headers["Content-Type"] = "application/json"
+    respond(w, string(response_text), headers)
+}
+
+func get(w http.ResponseWriter, r *http.Request) {
+    respondJson(w, buildResponseDict(r, []string{"headers", "url", "args", "origin"}))
 }
 
 func gzipHandler(w http.ResponseWriter, r *http.Request) {
