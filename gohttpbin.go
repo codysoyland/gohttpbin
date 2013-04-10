@@ -26,15 +26,11 @@ func getIp(r *http.Request)string {
 }
 
 func ip(w http.ResponseWriter, r *http.Request) {
-    response, err := json.MarshalIndent(map[string]string{"origin": getIp(r)}, "", "  ")
-    if err != nil { log.Fatal(err) }
-    fmt.Fprintf(w, string(response))
+    respondJson(w, buildResponseDict(r, []string{"origin"}))
 }
 
 func useragent(w http.ResponseWriter, r *http.Request) {
-    response, err := json.MarshalIndent(map[string]string{"user-agent": r.UserAgent()}, "", "  ")
-    if err != nil { log.Fatal(err) }
-    fmt.Fprintf(w, string(response))
+    respondJson(w, buildResponseDict(r, []string{"user-agent"}))
 }
 
 func getHeaders(r *http.Request)Headers {
@@ -46,9 +42,7 @@ func getHeaders(r *http.Request)Headers {
 }
 
 func headers(w http.ResponseWriter, r *http.Request) {
-    response, err := json.MarshalIndent(map[string]Headers{"headers": getHeaders(r)}, "", "  ")
-    if err != nil { log.Fatal(err) }
-    fmt.Fprintf(w, string(response))
+    respondJson(w, buildResponseDict(r, []string{"headers"}))
 }
 
 func getArgs(r *http.Request)map[string]string {
@@ -87,12 +81,16 @@ func gzipHandler(w http.ResponseWriter, r *http.Request) {
     res := buildResponseDict(r, []string{"headers", "origin", "gzipped", "method"})
     response, err := json.MarshalIndent(res, "", "  ")
     if err != nil { log.Fatal(err) }
-    w.Header().Set("Content-Encoding", "gzip")
-    w.Header().Set("Content-Type", "application/json")
-    writer := gzip.NewWriter(w)
-    if err != nil { log.Fatal(err) }
-    fmt.Fprintf(writer, string(response))
-    defer writer.Close()
+    buf := new(bytes.Buffer)
+    writer := gzip.NewWriter(buf)
+    fmt.Fprint(writer, string(response))
+    writer.Close()
+    str := buf.String()
+    headers := Headers{
+        "Content-Encoding": "gzip",
+        "Content-Type": "application/json",
+    }
+    respond(w, str, headers)
 }
 
 func streamHandler(w http.ResponseWriter, r *http.Request) {
@@ -133,10 +131,7 @@ func delayHandler(w http.ResponseWriter, r *http.Request) {
         length = 10
     }
     time.Sleep(time.Second*time.Duration(length))
-    res := buildResponseDict(r, []string{"url", "args", "form", "data", "origin", "headers", "files"})
-    response, err := json.MarshalIndent(res, "", "  ")
-    if err != nil { log.Fatal(err) }
-    fmt.Fprintf(w, string(response))
+    respondJson(w, buildResponseDict(r, []string{"url", "args", "form", "data", "origin", "headers", "files"}))
 }
 
 func buildResponseDict(r *http.Request, items []string) ResponseDict {
@@ -146,6 +141,7 @@ func buildResponseDict(r *http.Request, items []string) ResponseDict {
             case "headers": res[item] = getHeaders(r)
             case "url": res[item] = "http://" + r.Host + r.URL.String()
             case "args": res[item] = getArgs(r)
+            case "user-agent": res[item] = r.UserAgent()
             case "origin": res[item] = getIp(r)
             case "gzipped": res[item] = true
             case "method": res[item] = r.Method
