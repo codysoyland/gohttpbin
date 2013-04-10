@@ -17,20 +17,8 @@ import (
 type Headers map[string]string
 type ResponseDict map[string]interface{}
 
-func homepage(w http.ResponseWriter, r *http.Request) {
-    fmt.Fprintf(w, "Welcome to gohttpbin!")
-}
-
 func getIp(r *http.Request)string {
     return r.RemoteAddr[0:len(r.RemoteAddr)-strings.LastIndex(r.RemoteAddr, ":")-1]
-}
-
-func ip(w http.ResponseWriter, r *http.Request) {
-    respondJson(w, buildResponseDict(r, []string{"origin"}))
-}
-
-func useragent(w http.ResponseWriter, r *http.Request) {
-    respondJson(w, buildResponseDict(r, []string{"user-agent"}))
 }
 
 func getHeaders(r *http.Request)Headers {
@@ -41,16 +29,31 @@ func getHeaders(r *http.Request)Headers {
     return headers
 }
 
-func headers(w http.ResponseWriter, r *http.Request) {
-    respondJson(w, buildResponseDict(r, []string{"headers"}))
-}
-
 func getArgs(r *http.Request)map[string]string {
     args := map[string]string{}
     for k, v := range r.URL.Query() {
         args[k] = v[0]
     }
     return args
+}
+
+func buildResponseDict(r *http.Request, items []string) ResponseDict {
+    res := make(ResponseDict)
+    for _, item := range items {
+        switch item {
+            case "headers": res[item] = getHeaders(r)
+            case "url": res[item] = "http://" + r.Host + r.URL.String()
+            case "args": res[item] = getArgs(r)
+            case "user-agent": res[item] = r.UserAgent()
+            case "origin": res[item] = getIp(r)
+            case "gzipped": res[item] = true
+            case "method": res[item] = r.Method
+            case "form": res[item] = make(map[string]string) // TODO: implement
+            case "data": res[item] = "" // TODO: implement
+            case "files": res[item] = make(map[string]string) // TODO: implement
+        }
+    }
+    return res
 }
 
 func respond(w http.ResponseWriter, content string, headers Headers) {
@@ -73,7 +76,23 @@ func respondJson(w http.ResponseWriter, response ResponseDict) {
     respond(w, string(response_text), headers)
 }
 
-func get(w http.ResponseWriter, r *http.Request) {
+func homepageHandler(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(w, "Welcome to gohttpbin!") // TODO: rip off httpbin.org :P
+}
+
+func ipHandler(w http.ResponseWriter, r *http.Request) {
+    respondJson(w, buildResponseDict(r, []string{"origin"}))
+}
+
+func useragentHandler(w http.ResponseWriter, r *http.Request) {
+    respondJson(w, buildResponseDict(r, []string{"user-agent"}))
+}
+
+func headersHandler(w http.ResponseWriter, r *http.Request) {
+    respondJson(w, buildResponseDict(r, []string{"headers"}))
+}
+
+func getHandler(w http.ResponseWriter, r *http.Request) {
     respondJson(w, buildResponseDict(r, []string{"headers", "url", "args", "origin"}))
 }
 
@@ -134,31 +153,12 @@ func delayHandler(w http.ResponseWriter, r *http.Request) {
     respondJson(w, buildResponseDict(r, []string{"url", "args", "form", "data", "origin", "headers", "files"}))
 }
 
-func buildResponseDict(r *http.Request, items []string) ResponseDict {
-    res := make(ResponseDict)
-    for _, item := range items {
-        switch item {
-            case "headers": res[item] = getHeaders(r)
-            case "url": res[item] = "http://" + r.Host + r.URL.String()
-            case "args": res[item] = getArgs(r)
-            case "user-agent": res[item] = r.UserAgent()
-            case "origin": res[item] = getIp(r)
-            case "gzipped": res[item] = true
-            case "method": res[item] = r.Method
-            case "form": res[item] = make(map[string]string) // TODO: implement
-            case "data": res[item] = "" // TODO: implement
-            case "files": res[item] = make(map[string]string) // TODO: implement
-        }
-    }
-    return res
-}
-
 func main() {
-    http.HandleFunc("/", homepage)
-    http.HandleFunc("/ip", ip)
-    http.HandleFunc("/user-agent", useragent)
-    http.HandleFunc("/headers", headers)
-    http.HandleFunc("/get", get)
+    http.HandleFunc("/", homepageHandler)
+    http.HandleFunc("/ip", ipHandler)
+    http.HandleFunc("/user-agent", useragentHandler)
+    http.HandleFunc("/headers", headersHandler)
+    http.HandleFunc("/get", getHandler)
     http.HandleFunc("/gzip", gzipHandler)
     http.HandleFunc("/stream/", streamHandler)
     http.HandleFunc("/delay/", delayHandler)
