@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 
 type Headers map[string]string
 type ResponseDict map[string]interface{}
+type L []string
 
 func getIp(r *http.Request) string {
 	return r.RemoteAddr[0 : len(r.RemoteAddr)-strings.LastIndex(r.RemoteAddr, ":")-1]
@@ -37,7 +39,20 @@ func getArgs(r *http.Request) map[string]string {
 	return args
 }
 
-func buildResponseDict(r *http.Request, items []string) ResponseDict {
+func getCookies(r *http.Request) map[string]string {
+	cookies := r.Cookies()
+	cookie_map := make(map[string]string)
+	for _, cookie := range cookies {
+		cookie_map[cookie.Name] = cookie.Value
+	}
+	return cookie_map
+}
+
+func BadRequest(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "400 bad request", http.StatusBadRequest)
+}
+
+func buildResponseDict(r *http.Request, items L) ResponseDict {
 	res := make(ResponseDict)
 	for _, item := range items {
 		switch item {
@@ -63,6 +78,8 @@ func buildResponseDict(r *http.Request, items []string) ResponseDict {
 			res[item] = make(map[string]string) // TODO: implement
 		case "json":
 			res[item] = nil // TODO: implement
+		case "cookies":
+			res[item] = getCookies(r)
 		}
 	}
 	return res
@@ -78,13 +95,11 @@ func respond(w http.ResponseWriter, content string, headers Headers) {
 	io.Copy(w, &buf)
 }
 
-func respondJson(w http.ResponseWriter, response ResponseDict) {
+func respondJson(w http.ResponseWriter, response interface{}) {
 	response_text, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {
 		log.Fatal(err)
 	}
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, string(response_text))
 	headers := make(Headers)
 	headers["Content-Type"] = "application/json"
 	respond(w, string(response_text), headers)
@@ -98,80 +113,82 @@ func checkMethod(w http.ResponseWriter, r *http.Request, method string) bool {
 	return true
 }
 
+var templates = template.Must(template.ParseFiles("index.html"))
+
 func homepageHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Welcome to gohttpbin!") // TODO: rip off httpbin.org :P
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+	} else {
+		templates.ExecuteTemplate(w, "index.html", "")
+	}
 }
 
 func ipHandler(w http.ResponseWriter, r *http.Request) {
-	respondJson(w, buildResponseDict(r, []string{"origin"}))
+	respondJson(w, buildResponseDict(r, L{"origin"}))
 }
 
 func useragentHandler(w http.ResponseWriter, r *http.Request) {
-	respondJson(w, buildResponseDict(r, []string{"user-agent"}))
+	respondJson(w, buildResponseDict(r, L{"user-agent"}))
 }
 
 func headersHandler(w http.ResponseWriter, r *http.Request) {
-	respondJson(w, buildResponseDict(r, []string{"headers"}))
+	respondJson(w, buildResponseDict(r, L{"headers"}))
 }
 
 func getHandler(w http.ResponseWriter, r *http.Request) {
 	if !checkMethod(w, r, "GET") {
 		return
 	}
-	respondJson(w, buildResponseDict(r, []string{"headers", "url", "args", "origin"}))
+	respondJson(w, buildResponseDict(r, L{"headers", "url", "args", "origin"}))
 }
 
 func postHandler(w http.ResponseWriter, r *http.Request) {
 	if !checkMethod(w, r, "POST") {
 		return
 	}
-	respondJson(w, buildResponseDict(r, []string{"url", "args", "form", "data", "origin", "headers", "files", "json"}))
+	respondJson(w, buildResponseDict(r, L{"url", "args", "form", "data", "origin", "headers", "files", "json"}))
 }
 
 func putHandler(w http.ResponseWriter, r *http.Request) {
 	if !checkMethod(w, r, "PUT") {
 		return
 	}
-	respondJson(w, buildResponseDict(r, []string{"url", "args", "form", "data", "origin", "headers", "files", "json"}))
+	respondJson(w, buildResponseDict(r, L{"url", "args", "form", "data", "origin", "headers", "files", "json"}))
 }
 
 func patchHandler(w http.ResponseWriter, r *http.Request) {
 	if !checkMethod(w, r, "PATCH") {
 		return
 	}
-	respondJson(w, buildResponseDict(r, []string{"url", "args", "form", "data", "origin", "headers", "files", "json"}))
+	respondJson(w, buildResponseDict(r, L{"url", "args", "form", "data", "origin", "headers", "files", "json"}))
 }
 
 func deleteHandler(w http.ResponseWriter, r *http.Request) {
 	if !checkMethod(w, r, "DELETE") {
 		return
 	}
-	respondJson(w, buildResponseDict(r, []string{"url", "args", "data", "origin", "headers", "json"}))
+	respondJson(w, buildResponseDict(r, L{"url", "args", "data", "origin", "headers", "json"}))
 }
 
 func gzipHandler(w http.ResponseWriter, r *http.Request) {
-	res := buildResponseDict(r, []string{"headers", "origin", "gzipped", "method"})
+	res := buildResponseDict(r, L{"headers", "origin", "gzipped", "method"})
 	response, err := json.MarshalIndent(res, "", "  ")
 	if err != nil {
 		log.Fatal(err)
 	}
-	buf := new(bytes.Buffer)
-	writer := gzip.NewWriter(buf)
-	fmt.Fprint(writer, string(response))
+	w.Header().Set("Content-Encoding", "gzip")
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(response)))
+	writer := gzip.NewWriter(w)
+	writer.Write(response)
 	writer.Close()
-	str := buf.String()
-	headers := Headers{
-		"Content-Encoding": "gzip",
-		"Content-Type":     "application/json",
-	}
-	respond(w, str, headers)
 }
 
 func statusHandler(w http.ResponseWriter, r *http.Request) {
 	re := regexp.MustCompile(`/status/(\d{1,3})$`)
 	match := re.FindStringSubmatch(r.URL.String())
 	if len(match) == 0 {
-		w.WriteHeader(404)
+		http.NotFound(w, r)
 		return
 	}
 	status, err := strconv.ParseInt(match[1], 10, 16)
@@ -185,10 +202,10 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 	re := regexp.MustCompile(`/stream/(\d{1,9}).*`)
 	match := re.FindStringSubmatch(r.URL.String())
 	if len(match) == 0 {
-		w.WriteHeader(404)
+		http.NotFound(w, r)
 		return
 	}
-	res := buildResponseDict(r, []string{"url", "args", "headers", "origin"})
+	res := buildResponseDict(r, L{"url", "args", "headers", "origin"})
 
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.Header().Set("Content-Type", "application/json")
@@ -214,7 +231,7 @@ func delayHandler(w http.ResponseWriter, r *http.Request) {
 	re := regexp.MustCompile(`/delay/(\d{1,2}).*`)
 	match := re.FindStringSubmatch(r.URL.String())
 	if len(match) == 0 {
-		w.WriteHeader(404)
+		http.NotFound(w, r)
 		return
 	}
 	length, err := strconv.Atoi(match[1])
@@ -225,7 +242,64 @@ func delayHandler(w http.ResponseWriter, r *http.Request) {
 		length = 10
 	}
 	time.Sleep(time.Second * time.Duration(length))
-	respondJson(w, buildResponseDict(r, []string{"url", "args", "form", "data", "origin", "headers", "files"}))
+	respondJson(w, buildResponseDict(r, L{"url", "args", "form", "data", "origin", "headers", "files"}))
+}
+
+func responseHeaderHandler(w http.ResponseWriter, r *http.Request) {
+	args := getArgs(r)
+	for k, v := range args {
+		w.Header().Set(k, v)
+	}
+	respondJson(w, getArgs(r))
+}
+
+func redirectHandler(w http.ResponseWriter, r *http.Request) {
+	re := regexp.MustCompile(`/([\w-]+)/(\d{1,3}).*`)
+	match := re.FindStringSubmatch(r.URL.String())
+	if len(match) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	num, err := strconv.Atoi(match[2])
+	if err != nil {
+		log.Fatal(err)
+	}
+	var url string
+	if num <= 1 {
+		url = "/get"
+	} else {
+		url = "/" + match[1] + "/" + strconv.Itoa(num-1)
+	}
+	http.Redirect(w, r, url, 302)
+}
+
+func redirectToHandler(w http.ResponseWriter, r *http.Request) {
+	args := getArgs(r)
+	if url, ok := args["url"]; ok {
+		http.Redirect(w, r, url, 302)
+	} else {
+		BadRequest(w, r)
+	}
+}
+
+func cookiesHandler(w http.ResponseWriter, r *http.Request) {
+	respondJson(w, buildResponseDict(r, L{"cookies"}))
+}
+
+func setCookiesHandler(w http.ResponseWriter, r *http.Request) {
+	cookies := getArgs(r)
+	for k, v := range cookies {
+		http.SetCookie(w, &http.Cookie{Name: k, Value: v, Path: "/"})
+	}
+	http.Redirect(w, r, "/cookies", 302)
+}
+
+func deleteCookiesHandler(w http.ResponseWriter, r *http.Request) {
+	cookies := getArgs(r)
+	for k, _ := range cookies {
+		http.SetCookie(w, &http.Cookie{Name: k, Expires: time.Unix(1, 0), Path: "/", MaxAge: -1})
+	}
+	http.Redirect(w, r, "/cookies", 302)
 }
 
 func main() {
@@ -242,6 +316,13 @@ func main() {
 	http.HandleFunc("/status/", statusHandler)
 	http.HandleFunc("/stream/", streamHandler)
 	http.HandleFunc("/delay/", delayHandler)
+	http.HandleFunc("/response-headers", responseHeaderHandler)
+	http.HandleFunc("/redirect/", redirectHandler)
+	http.HandleFunc("/redirect-to", redirectToHandler)
+	http.HandleFunc("/relative-redirect/", redirectHandler) // TODO: redirect handler is already relative. Decide how this should work.
+	http.HandleFunc("/cookies", cookiesHandler)
+	http.HandleFunc("/cookies/set", setCookiesHandler)
+	http.HandleFunc("/cookies/delete", deleteCookiesHandler)
 
 	fmt.Printf("Listening on port 8000...\n")
 	err := http.ListenAndServe(":8000", nil)
