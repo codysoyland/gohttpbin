@@ -302,6 +302,31 @@ func deleteCookiesHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/cookies", 302)
 }
 
+func basicAuthHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO: implement
+}
+
+func digestAuthHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO: implement
+}
+
+func htmlHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO: implement
+}
+
+func robotsHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO: implement
+}
+
+func denyHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO: implement
+}
+
+func cacheHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO: implement
+}
+
+
 func main() {
 	http.HandleFunc("/", homepageHandler)
 	http.HandleFunc("/ip", ipHandler)
@@ -314,8 +339,6 @@ func main() {
 	http.HandleFunc("/delete", deleteHandler)
 	http.HandleFunc("/gzip", gzipHandler)
 	http.HandleFunc("/status/", statusHandler)
-	http.HandleFunc("/stream/", streamHandler)
-	http.HandleFunc("/delay/", delayHandler)
 	http.HandleFunc("/response-headers", responseHeaderHandler)
 	http.HandleFunc("/redirect/", redirectHandler)
 	http.HandleFunc("/redirect-to", redirectToHandler)
@@ -323,6 +346,15 @@ func main() {
 	http.HandleFunc("/cookies", cookiesHandler)
 	http.HandleFunc("/cookies/set", setCookiesHandler)
 	http.HandleFunc("/cookies/delete", deleteCookiesHandler)
+	http.HandleFunc("/basic-auth/", basicAuthHandler)
+	http.HandleFunc("/digest-auth/", digestAuthHandler)
+	http.HandleFunc("/stream/", streamHandler)
+	http.HandleFunc("/delay/", delayHandler)
+	http.HandleFunc("/html", htmlHandler)
+	http.HandleFunc("/robots.txt", robotsHandler)
+	http.HandleFunc("/deny", denyHandler)
+	http.HandleFunc("/cache", cacheHandler)
+
 
 	fmt.Printf("Listening on port 8000...\n")
 	err := http.ListenAndServe(":8000", nil)
